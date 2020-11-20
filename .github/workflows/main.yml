@@ -1,9 +1,8 @@
 name: '[builder] CI for releases'
 
 on:
-    push:
-        branches:
-            - master
+  release:
+    types: [published]
 
 jobs:
     release:
@@ -27,9 +26,11 @@ jobs:
                 version: latest
         -
             name: Build dockerfile (with push)
+            env:
+                DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
             run: |
                 docker buildx build \
                 --platform=linux/amd64,linux/arm/v7,linux/arm64 \
                 --output "type=image,push=true" \
                 --file ./Dockerfile . \
-                --tag fabiocaruso/soundloop:latest
+                --tag $(echo "${DOCKER_USERNAME}" | tr '[:upper:]' '[:lower:]')/soundloop:latest
