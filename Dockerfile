@@ -1,4 +1,5 @@
 FROM arm64v8/ubuntu
+COPY qemu-arm-static /usr/bin
 WORKDIR /root/
 EXPOSE 8000
 VOLUME /root/downloads
