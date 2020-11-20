@@ -1,0 +1,123 @@
+<template>
+  <div class="list">
+		<ul>
+			<li :key="video.id" v-for="video in videos">
+				<img :src="video.thumbnail">
+				<p>{{ video.name }}</p>
+			</li>
+			<li ref="addContainer" class="addContainer">
+				<input placeholder="Youtube Link">
+				<button @click="download">Download</button>
+			</li>
+		</ul>
+  </div>
+</template>
+
+<script>
+let videos = [
+{
+	id: 0,
+	name: 'Horst Rüdischer',
+	thumbnail: '',
+},
+{
+	id: 1,
+	name: 'Horst Rüdischer',
+	thumbnail: 'https://img.youtube.com/vi/gOMhN-hfMtY/mqdefault.jpg',
+},
+{
+	id: 2,
+	name: 'Horst Rüdischer',
+	thumbnail: '',
+},
+];
+
+export default {
+  name: 'list',
+  props: {
+    msg: String
+	},
+	data() {
+		return {
+			videos: videos,
+		}
+	},
+	methods: {
+		async getVideosList() {
+			return await fetch('http://localhost:8000/queue')
+				.then(function (response) {
+					return response.json();
+				}).then(function(data) {
+					return data;
+				}).catch(function(e) {
+					console.log("Can't fetch video list" + e);
+				});
+		},
+		async getVideoFromURL(url) {
+			let videoId = (new URL(url)).searchParams.get('v');
+			let id = this.videos.length === 0 ? 0 : this.videos[this.videos.length - 1].id + 1;
+			let proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+			let title = await fetch(proxyUrl + 'https://www.youtube.com/oembed?url=' + encodeURIComponent(url) + '&format=json')
+			.then(function (response) {
+				return response.json();
+			}).then(function(data) {
+				return data.title;
+			}).catch(function(e) {
+				console.log("Can't fetch title" + e);
+			});
+			return {
+				id: id, 
+				name: title, 
+				thumbnail: 'https://img.youtube.com/vi/' + videoId + '/mqdefault.jpg'
+			}
+		},
+		download() {
+			let link = this.$refs.addContainer.querySelector("input").value;
+			this.getVideoFromURL(link).then((video) => {
+				console.log(video);
+				this.videos.push(video);
+			});
+		}
+	},
+	mounted() {
+		/*this.IVideoFetch = setInterval(function(){this.getVideosList().then((data) => {
+			return data.list;
+		}).then((list) => {
+			this.$data.videos = [];
+			list.forEach((item) => {
+				this.getVideoFromURL(item.link).then((video) => {
+					this.$data.videos.push(video);
+				});
+			});
+		});}.bind(this), 10000);*/
+	},
+}
+</script>
+
+<style scoped>
+.list {
+	width: 40vw;
+	height: 40vh;
+	background: grey;
+}
+
+.list > ul {
+	list-style-type: none;
+	padding: 0;
+}
+
+.list > ul > li {
+	height: 100px;
+	text-align: left;
+	display: flex;
+	align-items: center;
+}
+
+.list > ul > li > p {
+	margin-left: 10px;
+}
+
+.list > ul > li > img {
+	height: inherit;
+}
+</style>

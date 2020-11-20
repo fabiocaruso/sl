@@ -1,0 +1,13 @@
+# ignore .git and .cache folders
+**/.git
+**/.cache
+**/target
+**/.gitignore
+**/LICENSE
+**/VERSION
+**/README.md
+**/Changelog.md
+**/Makefile
+**/docker-compose.yml
+**/docs
+**/node_modules
