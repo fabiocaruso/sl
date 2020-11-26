@@ -10,6 +10,7 @@ use log::{info, trace, warn};
 #[allow(unused_imports)]
 use std::{thread, env};
 //use std::sync::mpsc::channel;
+use serde::{Deserialize, Serialize};
 
 mod video;
 mod work_queue;
@@ -17,13 +18,21 @@ mod cli;
 use work_queue::*;
 use video::*;
 
+#[derive(Clone, Serialize, Deserialize)]
+struct Resp {
+    result: String,
+}
+
 #[post("/addVideo/{url}")]
-async fn add_video(c: web::Data<Client>, q: web::Data<WorkQueue<Work>>, url: web::Path<String>) -> Result<String, Error> {
+async fn add_video(c: web::Data<Client>, q: web::Data<WorkQueue<Work>>, url: web::Path<String>) -> Result<HttpResponse> {
     let mut v = Video::new(decode(&*url.into_inner()).unwrap());
     let res = Video::get_meta_data(&c, &v).await?;
     v.meta = Some(res);
     q.into_inner().add_work(Work::Download(v));
-    Ok("Success".into())
+    Ok(
+        HttpResponse::Ok()
+        .json(Resp { result: "Success".into() })
+    )
 }
 
 #[get("/queue")]
