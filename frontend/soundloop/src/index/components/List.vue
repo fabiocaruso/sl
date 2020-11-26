@@ -25,31 +25,29 @@ export default {
 		}
 	},
 	methods: {
-		getVideosList() {
-		},
 		addVideo(url) {
 			let response = fetch(this.$props.apiUrl + '/addVideo/' + encodeURIComponent(url), {
-				method: 'POST',
-				body: ''
-			}).catch((e) => {
+				method: 'POST'
+			})
+				.then(data => data.json())
+				.then(resp => {
+					console.log(resp);
+				})
+				.catch((e) => {
 					console.log("Connection lost.. trying to reconnect!");
 					console.log("Error Message: " + e); 
-			});
+				});
 			return response === undefined ? false : response;
 		},
 		refreshVideosList() {
 			fetch(this.$props.apiUrl + '/queue')
 				.then(resp => resp.json())
 				.then(list => {
-					if (list === false || list.queue == undefined) return false;
-					let len = this.$data.videos.length;
+					if (list === false) return false;
 					this.$data.videos = [];
-					list.queue.forEach((item) => {
-						this.$data.videos.push(item);
+					list.forEach((item) => {
+						this.$data.videos.push(item.Download);
 					});
-					if (len != this.$data.videos.length) {
-						this.videos.push({meta:{title: 'Loading..'}});
-					}
 				})
 				.catch((e) => {
 					console.log("Connection lost.. trying to reconnect!");
