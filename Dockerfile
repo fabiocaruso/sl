@@ -5,7 +5,7 @@ VOLUME /root/downloads
 COPY . .
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install curl build-essential ffmpeg libavcodec-extra python3 python-is-python3 npm -y
+RUN apt-get update && apt-get install curl build-essential ffmpeg libavcodec-extra python3 python-is-python3 npm libevent-dev llvm libclang-dev -y
 
 RUN curl -L --output youtube-dl https://youtube-dl.org/downloads/latest/youtube-dl
 RUN chmod +x youtube-dl

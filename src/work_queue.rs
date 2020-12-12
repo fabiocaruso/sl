@@ -3,10 +3,12 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde::{Deserialize, Serialize};
 
 use super::Video;
+use super::Music;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum Work {
     Download(Video),
+    Tag(Music),
     Normalize(i32),
 }
 
