@@ -1,4 +1,4 @@
-use std::{io, str, time::{SystemTime, UNIX_EPOCH}};
+use std::{io, time::{SystemTime, UNIX_EPOCH}};
 use sha3::{Digest, Sha3_256};
 use actix_web::{web::Data, Error, dev::ServiceRequest};
 use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
@@ -6,7 +6,8 @@ use actix_web_httpauth::extractors::AuthenticationError;
 use jsonwebtokens as jwt;
 use jwt::{Algorithm, AlgorithmID, Verifier, encode};
 use couchbase::{QueryOptions};
-use super::{cli::Args, db::*, Session, User};
+use super::{cli::Args, db::*, Session, user::fetch_user};
+#[allow(unused_imports)]
 use serde::{Serialize, Deserialize};
 use serde_json::{json, value::Value};
 
@@ -34,7 +35,6 @@ pub async fn validate_handler(req: ServiceRequest, credentials: BearerAuth) -> R
             let id = claim.get("userId").unwrap().as_str().unwrap();
             let sid = claim.get("session").unwrap().as_str().unwrap();
             let user = fetch_user(db, id, sid).await.unwrap();
-            println!("USER: {:?}", user);
             session.set_user(user);
             Ok(req)
         },
@@ -97,7 +97,7 @@ pub async fn login(db: &Db, data: Login, secret: &str) -> Result<String, impl st
                 let token = encode(&header, &claims, &alg).unwrap();
                 Ok(token)
             },
-            QueryResult::None => Err(io::Error::new(io::ErrorKind::Other, "Database error!")),
+            _ => Err(io::Error::new(io::ErrorKind::Other, "Database error!")),
         },
         None => Err(io::Error::new(io::ErrorKind::Other, "User not found!")),
     }
@@ -140,7 +140,6 @@ pub async fn logout(db: &Db, id: &str) -> Result<String, impl std::error::Error>
             Ok("Success!".into())
         },
         Err(e) => {
-            println!("Err");
             Err(io::Error::new(io::ErrorKind::Other, e.to_string()))
         }
     }

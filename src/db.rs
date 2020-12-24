@@ -3,13 +3,12 @@ use log::{info, trace, warn, error};
 use couchbase::{Cluster, QueryOptions, CouchbaseError};
 use futures::stream::StreamExt;
 use serde::{Deserialize};
-use serde_json::json;
+use serde_json::Value;
 use super::User;
-use std::io;
 
 pub enum N1QL{}
 impl N1QL {
-    pub const LOGIN: &'static str = "UPDATE Soundloop SET `session`=$session WHERE `email`=$email AND `hash`=$hash RETURNING {meta().id, `first_name`, `name`, `email`, `role`, `session`} AS `User`";
+    pub const LOGIN: &'static str = "UPDATE Soundloop SET `session`=$session WHERE `email`=$email AND `hash`=$hash RETURNING {meta().id, `first_name`, `name`, `email`, `role`, `session`, `music`} AS `User`";
     pub const REGISTER: &'static str = "
         MERGE INTO `Soundloop` AS sl
         USING [
@@ -20,13 +19,23 @@ impl N1QL {
                 'first_name': $first_name,
                 'hash': $hash,
                 'role': $role,
-                'session': $session
+                'session': $session,
+                'music': []
             }
         ] AS u
         ON u.email = sl.email
         WHEN NOT MATCHED THEN INSERT (KEY UUID(),VALUE u)";
-    pub const GET_USER_BY_ID: &'static str = "SELECT {meta().id, `first_name`, `name`, `email`, `role`, `session`} AS `User` FROM Soundloop AS sl WHERE meta().id=$id AND `session`=$session;";
+    pub const GET_USER_BY_ID: &'static str = "SELECT {meta().id, `first_name`, `name`, `email`, `role`, `session`, `music`} AS `User` FROM Soundloop AS sl WHERE meta().id=$id AND `session`=$session;";
     pub const LOGOUT: &'static str = "UPDATE Soundloop SET `session`='' WHERE meta().id=$id";
+    pub const ADD_TRACK: &'static str = "
+        UPDATE `Soundloop` AS sl
+        SET sl.music = ARRAY_PUT(sl.music, OBJECT_PUT($track, 'id', UUID()))
+        WHERE meta(sl).id = $id
+        RETURNING sl.music[ARRAY_LENGTH(sl.music)-1] AS Json";
+    pub const UPDATE_TRACK: &'static str = "
+        UPDATE `Soundloop` AS sl
+        SET sl.music[i].status = $status FOR i: t IN sl.music WHEN t.id = $trackid END
+        WHERE meta(sl).id = $id;";
 }
 
 pub struct Db {
@@ -34,31 +43,15 @@ pub struct Db {
 }
 
 pub struct Query {
-    pub n1ql: String,
+    pub n1ql: &'static str,
     pub options: QueryOptions,
 }
 
 #[derive(Debug, Deserialize)]
 pub enum QueryResult {
+    Json(Value),
     User(User),
-    None,
-}
-
-pub async fn fetch_user(db: &Db, id: &str, sid: &str) -> Result<User, io::Error> {
-    let options = QueryOptions::default().named_parameters(
-        json!({
-            "id": id,
-            "session": sid,
-        })
-    );
-    let mut result = db.query(Query{ n1ql: N1QL::GET_USER_BY_ID.into(), options}).await.unwrap();
-    match result.pop() {
-        Some(r) => match r {
-            QueryResult::User(u) => Ok(u),
-            QueryResult::None => Err(io::Error::new(io::ErrorKind::Other, "Database error!")),
-        },
-        None => Err(io::Error::new(io::ErrorKind::Other, "User not found!")),
-    }
+    NoResult,
 }
 
 impl Db {
@@ -73,14 +66,14 @@ impl Db {
     }
 
     pub async fn query(&self, q: Query) -> Result<Vec<QueryResult>, CouchbaseError> {
-        let mut result = self.conn.query(&q.n1ql, q.options).await?;
+        let mut result = self.conn.query(q.n1ql, q.options).await?;
         let mut ret: Vec<QueryResult> = Vec::new();
-        for row in result.rows::<QueryResult>().next().await {
+        let mut iter = result.rows::<QueryResult>();
+        for row in iter.next().await {
             match row {
                 Ok(r) => {
-                    println!("query row: {:?}", r);
                     match r {
-                        QueryResult::None => {}
+                        QueryResult::NoResult => {},
                         _ => {
                             ret.push(r);
                         }

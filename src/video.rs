@@ -1,10 +1,11 @@
 use actix_web::{Error, client::Client};
 #[allow(unused_imports)]
-use log::{info, trace, warn};
+use log::{info, trace, warn, error};
 use std::process::{Command, Stdio};
 use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use urlencoding::{encode, decode};
+use fancy_regex::Regex;
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct VideoMeta {
@@ -56,13 +57,26 @@ impl Video {
             Some(code) => match code {
                 0 => match std::str::from_utf8(&output.stdout) {
                     Ok(out) => {
-                        info!("Download finished");
-                        Ok(out.into())
+                        println!("OUTPUT: {}", out);
+                        let re = Regex::new(r"(\[ffmpeg\] [dD]estination: )(.*)\n").unwrap();
+                        if let Some(caps) = re.captures(out).unwrap() {
+                            if let Some(file) = caps.get(2) {
+                                info!("Download finished");
+                                Ok(file.as_str().into())
+                            } else {
+                                error!("Can't extract filename!");
+                                Err("Can't extract filename!".into())
+                            }
+                        } else {
+                            error!("Can't extract filename!");
+                            Err("Can't extract filename!".into())
+                        }
                     },
                     Err(_) => Err("Can't get output of youtube-dl!".into())
                 },
                 1 => match std::str::from_utf8(&output.stderr) {
                     Ok(out) => {
+                        //TODO: Check for new version of youtube-dl -> upgrade -> retry
                         info!("Failed to download file!");
                         Err((&out[7..]).into())
                     },

@@ -16,4 +16,4 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN cargo build --release
 RUN cp target/release/soundloop /usr/local/bin/soundloop
 
-ENTRYPOINT ["soundloop", "-d", "/root/downloads", "-w", "4"]
+ENTRYPOINT soundloop -d "/root/downloads" -w $SOUNDLOOP_WORKERS --dbhost $SOUNDLOOP_DBHOST --dbuser $SOUNDLOOP_DBUSER --jwt $SOUNDLOOP_JWT --dbpwd $SOUNDLOOP_DBPW

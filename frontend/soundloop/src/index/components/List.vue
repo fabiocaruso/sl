@@ -26,7 +26,7 @@ export default {
 	},
 	methods: {
 		addVideo(url) {
-			let response = fetch(this.$props.apiUrl + '/addVideo/' + encodeURIComponent(url), {
+			let response = fetch(this.$props.apiUrl + '/api/v1/user/addVideo/' + encodeURIComponent(url), {
 				method: 'POST'
 			})
 				.then(data => data.json())
@@ -40,7 +40,7 @@ export default {
 			return response === undefined ? false : response;
 		},
 		refreshVideosList() {
-			fetch(this.$props.apiUrl + '/queue')
+			fetch(this.$props.apiUrl + '/api/v1/user/queue')
 				.then(resp => resp.json())
 				.then(list => {
 					if (list === false) return false;
@@ -77,9 +77,10 @@ export default {
 
 <style scoped>
 .list {
-	width: 40vw;
-	height: 40vh;
+	height: 100%;
 	background: #ededed;
+	display: flex;
+	flex-direction: column;
 }
 
 .list > ul {
@@ -87,7 +88,7 @@ export default {
 	padding: 0;
 	margin: 0;
 	overflow-y: scroll;
-	height: inherit;
+	height: 100%;
 }
 
 .list > ul > li {
@@ -112,6 +113,7 @@ export default {
 }
 
 .list > .addContainer > input {
+	min-width: 0px;
 	width: 100%;
 	padding: 8px;
 }

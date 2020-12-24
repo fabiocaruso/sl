@@ -4,7 +4,7 @@ pub struct Args {
     pub ip: String,
     pub port: u16,
     pub workers: u8,
-    pub v_lvl: u8,
+    pub v_lvl: String,
     pub dbhost: String,
     pub dbuser: String,
     pub dbpwd: String,
@@ -16,8 +16,8 @@ impl Args {
     
     pub fn get_args() -> Self {
         let matches = clap::App::new("soundloop")
-            .version("1.0")
-            .author("lol <lol@lol>")
+            .version("0.1.3")
+            .author("Fabio Caruso <test@test>")
             .about("Soundloop Server")
             .arg(clap::Arg::new("ip")
                 .short('i')
@@ -40,46 +40,48 @@ impl Args {
             .arg(clap::Arg::new("dir")
                 .short('d')
                 .long("dir")
-                .value_name("DOWNLOAD_DIR")
+                .value_name("DIRECTORY")
                 .about("Set the download directory.")
                 .takes_value(true))
             .arg(clap::Arg::new("dbhost")
                 .long("dbhost")
-                .value_name("DBHOST")
+                .value_name("HOST")
                 .about("Set the host of the database.")
                 .takes_value(true))
             .arg(clap::Arg::new("dbuser")
                 .long("dbuser")
-                .value_name("DBUSER")
+                .value_name("USER")
                 .about("Set the username of the database.")
                 .takes_value(true))
             .arg(clap::Arg::new("dbpwd")
                 .long("dbpwd")
-                .value_name("DBPWD")
+                .value_name("PASSWORD")
                 .about("Set the password of the database.")
                 .takes_value(true))
             .arg(clap::Arg::new("dbdb")
                 .long("dbdb")
-                .value_name("DBDB")
+                .value_name("NAME")
                 .about("Set the database name for Soundloop.")
                 .takes_value(true))
             .arg(clap::Arg::new("jwt")
                 .short('j')
                 .long("jwt")
-                .value_name("JWT")
+                .value_name("TOKEN")
                 .about("Set the JWT secret key.")
                 .required(true)
                 .takes_value(true))
             .arg(clap::Arg::new("verbose")
                 .short('v')
+                .long("verbose")
+                .value_name("LEVEL")
                 .about("Sets the level of verbosity")
-                .multiple(true))
+                .takes_value(true))
             .get_matches();
         let download_path = matches.value_of("dir").unwrap_or("downloads").to_owned();
         let ip = matches.value_of("ip").unwrap_or("0.0.0.0").to_owned();
         let port = matches.value_of("port").unwrap_or("8000").parse::<u16>().unwrap_or(8000);
         let workers = matches.value_of("workers").unwrap_or("5").parse::<u8>().unwrap_or(5);
-        let v_lvl = matches.value_of("verbose").unwrap_or("0").parse::<u8>().unwrap_or(0);
+        let v_lvl = matches.value_of("verbose").unwrap_or("error").to_owned();
         let dbhost = matches.value_of("dbhost").unwrap_or("couchbase://localhost").to_owned();
         let dbuser = matches.value_of("dbuser").unwrap_or("").to_owned();
         let dbpwd = matches.value_of("dbpwd").unwrap_or("").to_owned();
