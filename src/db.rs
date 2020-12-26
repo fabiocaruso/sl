@@ -5,10 +5,16 @@ use futures::stream::StreamExt;
 use serde::{Deserialize};
 use serde_json::Value;
 use super::User;
+use anyhow::Result;
+use thiserror::Error;
 
-pub enum N1QL{}
+pub struct N1QL;
 impl N1QL {
-    pub const LOGIN: &'static str = "UPDATE Soundloop SET `session`=$session WHERE `email`=$email AND `hash`=$hash RETURNING {meta().id, `first_name`, `name`, `email`, `role`, `session`, `music`} AS `User`";
+    pub const LOGIN: &'static str = "
+        UPDATE Soundloop 
+        SET `session`=$session 
+        WHERE `email`=$email AND `hash`=$hash 
+        RETURNING {meta().id, `first_name`, `name`, `email`, `role`, `session`, `music`} AS `User`";
     pub const REGISTER: &'static str = "
         MERGE INTO `Soundloop` AS sl
         USING [
@@ -25,8 +31,14 @@ impl N1QL {
         ] AS u
         ON u.email = sl.email
         WHEN NOT MATCHED THEN INSERT (KEY UUID(),VALUE u)";
-    pub const GET_USER_BY_ID: &'static str = "SELECT {meta().id, `first_name`, `name`, `email`, `role`, `session`, `music`} AS `User` FROM Soundloop AS sl WHERE meta().id=$id AND `session`=$session;";
-    pub const LOGOUT: &'static str = "UPDATE Soundloop SET `session`='' WHERE meta().id=$id";
+    pub const GET_USER_BY_ID: &'static str = "
+        SELECT {meta().id, `first_name`, `name`, `email`, `role`, `session`, `music`} AS `User` 
+        FROM Soundloop AS sl 
+        WHERE meta().id=$id AND `session`=$session;";
+    pub const LOGOUT: &'static str = "
+        UPDATE Soundloop 
+        SET `session`='' 
+        WHERE meta().id=$id";
     pub const ADD_TRACK: &'static str = "
         UPDATE `Soundloop` AS sl
         SET sl.music = ARRAY_PUT(sl.music, OBJECT_PUT($track, 'id', UUID()))
@@ -47,11 +59,19 @@ pub struct Query {
     pub options: QueryOptions,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(PartialEq, Debug, Deserialize)]
 pub enum QueryResult {
     Json(Value),
     User(User),
     NoResult,
+}
+
+#[derive(Error, Debug)]
+pub enum DbError {
+    #[error("No items found for this query!")]
+    NoResult,
+    #[error("The database returned the wrong data type! (returned {0})")]
+    WrongType(String),
 }
 
 impl Db {
@@ -65,23 +85,13 @@ impl Db {
         }
     }
 
-    pub async fn query(&self, q: Query) -> Result<Vec<QueryResult>, CouchbaseError> {
+    pub async fn query(&self, q: Query) -> Result<Vec<QueryResult>> {
         let mut result = self.conn.query(q.n1ql, q.options).await?;
         let mut ret: Vec<QueryResult> = Vec::new();
         let mut iter = result.rows::<QueryResult>();
-        for row in iter.next().await {
-            match row {
-                Ok(r) => {
-                    match r {
-                        QueryResult::NoResult => {},
-                        _ => {
-                            ret.push(r);
-                        }
-                    }
-                },
-                _ => {
-                    error!("Can't parse the result of following query: {}", &q.n1ql);
-                }
+        while let Some(Ok(row)) = iter.next().await {
+            if row != QueryResult::NoResult {
+                ret.push(row);
             }
         }
         Ok(ret)

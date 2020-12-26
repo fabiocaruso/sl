@@ -1,9 +1,9 @@
-use std::io;
 use super::{Track, db::*};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde::{Deserialize};
 use serde_json::{json};
 use couchbase::{QueryOptions};
+use anyhow::{Result, bail};
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]
 pub struct User {
@@ -36,26 +36,26 @@ impl Serialize for User {
 
 }
 
-pub async fn fetch_user(db: &Db, id: &str, sid: &str) -> Result<User, io::Error> {
+pub async fn fetch_user(db: &Db, id: &str, sid: &str) -> Result<User> {
     let options = QueryOptions::default().named_parameters(
         json!({
             "id": id,
             "session": sid,
         })
     );
-    let mut result = db.query(Query{ n1ql: N1QL::GET_USER_BY_ID.into(), options}).await.unwrap();
-    match result.pop() {
-        Some(r) => match r {
-            QueryResult::User(u) => Ok(u),
-            _ => Err(io::Error::new(io::ErrorKind::Other, "Database error!")),
-        },
-        None => Err(io::Error::new(io::ErrorKind::Other, "User not found!")),
+    let mut result = db.query(Query{ n1ql: N1QL::GET_USER_BY_ID.into(), options}).await?;
+    if let Some(e) = result.pop() {
+        if let QueryResult::User(u) = e {
+            return Ok(u)
+        }
+        bail!("Query Error!");
     }
+    bail!("User not found!");
 }
 
 impl User {
     
-    pub fn new() -> Self {
+    pub fn _new() -> Self {
         Self {
             id: None,
             first_name: None,

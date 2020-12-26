@@ -1,4 +1,4 @@
-use std::{io, time::{SystemTime, UNIX_EPOCH}};
+use std::{time::{SystemTime, UNIX_EPOCH}};
 use sha3::{Digest, Sha3_256};
 use actix_web::{web::Data, Error, dev::ServiceRequest};
 use actix_web_httpauth::extractors::bearer::{BearerAuth, Config};
@@ -11,6 +11,7 @@ use super::{cli::Args, db::*, Session, user::fetch_user};
 use serde::{Serialize, Deserialize};
 use serde_json::{json, value::Value};
 use uuid::Uuid;
+use anyhow::{Result, bail};
 
 #[derive(Debug, Deserialize)]
 pub struct Login {
@@ -26,6 +27,7 @@ pub struct Register {
     pub password: String,
 }
 
+// Actix middleware
 pub async fn validate_handler(req: ServiceRequest, credentials: BearerAuth) -> Result<ServiceRequest, Error> {
     let config = req.app_data::<Data<Args>>().unwrap().get_ref();
     match validate_token(credentials.token(), &config.jwt_secret).await {
@@ -66,7 +68,7 @@ pub fn hash_pw(pw: &str) -> String {
 }
 
 //TODO: AuthError wrapper for std::error:Error
-pub async fn login(db: &Db, data: Login, secret: &str) -> Result<String, impl std::error::Error> {
+pub async fn login(db: &Db, data: Login, secret: &str) -> Result<String> {
     let options = QueryOptions::default().named_parameters(
         json!({
             "email": data.email,
@@ -74,38 +76,35 @@ pub async fn login(db: &Db, data: Login, secret: &str) -> Result<String, impl st
             "session": Uuid::new_v4().to_hyphenated().to_string(),
         })
     );
-    let mut result = db.query(Query{ n1ql: N1QL::LOGIN.into(), options}).await.unwrap();
-    match result.pop() {
-        Some(r) => match r {
-            QueryResult::User(u) => {
-                // Build JWT Token
-                let jwt_lifetime = 7_776_000; // 3 Months
-                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-                let alg = Algorithm::new_hmac(AlgorithmID::HS256, secret).unwrap();
-                let header = json!({ 
-                    "alg": alg.name(),
-                });
-                let claims = json!({
-                    "userId": u.id().unwrap(),
-                    "session": u.session().unwrap(),
-                    //"iss": "Soundloop",
-                    "sub": "Soundloop",
-                    "aud": "user",
-                    "exp": now + jwt_lifetime,
-                    "nbf": now,
-                    "iat": now,
-                });
-                let token = encode(&header, &claims, &alg).unwrap();
-                Ok(token)
-            },
-            _ => Err(io::Error::new(io::ErrorKind::Other, "Database error!")),
-        },
-        None => Err(io::Error::new(io::ErrorKind::Other, "User not found!")),
+    let mut result = db.query(Query{ n1ql: N1QL::LOGIN.into(), options}).await?;
+    if let Some(r) = result.pop() {
+        if let QueryResult::User(u) = r {
+            // Build JWT Token
+            let jwt_lifetime = 7_776_000; // 3 Months
+            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            let alg = Algorithm::new_hmac(AlgorithmID::HS256, secret).unwrap();
+            let header = json!({ 
+                "alg": alg.name(),
+            });
+            let claims = json!({
+                "userId": u.id().unwrap(),
+                "session": u.session().unwrap(),
+                //"iss": "Soundloop",
+                "sub": "Soundloop",
+                "aud": "user",
+                "exp": now + jwt_lifetime,
+                "nbf": now,
+                "iat": now,
+            });
+            let token = encode(&header, &claims, &alg).unwrap();
+            return Ok(token);
+        }
+        bail!("Query Error!");
     }
+    bail!("User not found or password incorrect!");
 }
 
-//TODO: AuthError wrapper for std::error:Error
-pub async fn register(db: &Db, data: Register) -> Result<String, impl std::error::Error> {
+pub async fn register(db: &Db, data: Register) -> Result<()> {
     let options = QueryOptions::default().named_parameters(
         json!({
             "type": "user",
@@ -117,31 +116,19 @@ pub async fn register(db: &Db, data: Register) -> Result<String, impl std::error
             "session": ""
         })
     );
-    //TODO: Bad error catching
-    //TODO: Check the number of results (if 0 then there is already a email like this in the db)
-    match db.query(Query{ n1ql: N1QL::REGISTER.into(), options}).await {
-        Ok(_) => {
-            Ok("Success!".into())
-        },
-        Err(e) => {
-            Err(io::Error::new(io::ErrorKind::Other, e.to_string()))
-        }
+    let result = db.query(Query{ n1ql: N1QL::REGISTER.into(), options}).await?;
+    if result.len() == 1 {
+        return Ok(());
     }
+    bail!("User already registered!");
 }
 
-pub async fn logout(db: &Db, id: &str) -> Result<String, impl std::error::Error> {
+pub async fn logout(db: &Db, id: &str) -> Result<()> {
     let options = QueryOptions::default().named_parameters(
         json!({
             "id": id,
         })
     );
-    //TODO: Bad error catching
-    match db.query(Query{ n1ql: N1QL::LOGOUT.into(), options}).await {
-        Ok(_) => {
-            Ok("Success!".into())
-        },
-        Err(e) => {
-            Err(io::Error::new(io::ErrorKind::Other, e.to_string()))
-        }
-    }
+    let result = db.query(Query{ n1ql: N1QL::LOGOUT.into(), options}).await?;
+    Ok(())
 }

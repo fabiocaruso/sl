@@ -1,8 +1,8 @@
-use std::io;
 use serde::{Deserialize, Serialize};
 use serde_json::{json};
 use super::{db::*};
 use couchbase::{QueryOptions};
+use anyhow::{Result, bail};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "code")]
@@ -46,40 +46,25 @@ pub struct Track {
     pub meta: Option<TrackTags>,
 }
 
-pub async fn add_track(db: &Db, user_id: &str, track: &mut Track) -> Result<String, io::Error> {
-    //TODO: Get the newly generated UUID from the query
+pub async fn add_track(db: &Db, user_id: &str, track: &mut Track) -> Result<()> {
     let options = QueryOptions::default().named_parameters(
         json!({
             "id": user_id,
             "track": track,
         })
     );
-    match db.query(Query{ n1ql: N1QL::ADD_TRACK.into(), options}).await {
-        Ok(mut result) => {
-            match result.pop() {
-                Some(e) => {
-                    match e {
-                        QueryResult::Json(v) => {
-                            *track.id_mut() = Some(v.get("id").unwrap().as_str().unwrap().to_string());
-                            Ok("Success!".into())
-                        }
-                        _ => {
-                            Err(io::Error::new::<String>(io::ErrorKind::Other, "Unexpected result!".into()))
-                        }
-                    }
-                },
-                None => {
-                    Err(io::Error::new::<String>(io::ErrorKind::Other, "Cannot extract id!".into()))
-                }
-            }
-        },
-        Err(e) => {
-            Err(io::Error::new(io::ErrorKind::Other, e.to_string()))
+    let mut result = db.query(Query{ n1ql: N1QL::ADD_TRACK.into(), options}).await?;
+    if let Some(e) = result.pop() {
+        if let QueryResult::Json(v) = e {
+            *track.id_mut() = Some(v.get("id").unwrap().as_str().unwrap().to_string());
+            return Ok(());
         }
+        bail!("Query Error!");
     }
+    bail!("Track insertion failed!");
 }
 
-pub async fn update_track(db: &Db, user_id: &str, track: &Track) -> Result<String, io::Error> {
+pub async fn update_track(db: &Db, user_id: &str, track: &Track) -> Result<()> {
     let options = QueryOptions::default().named_parameters(
         json!({
             "id": user_id,
@@ -87,14 +72,8 @@ pub async fn update_track(db: &Db, user_id: &str, track: &Track) -> Result<Strin
             "status": track.status(),
         })
     );
-    match db.query(Query{ n1ql: N1QL::UPDATE_TRACK.into(), options}).await {
-        Ok(_) => {
-            Ok("Success!".into())
-        },
-        Err(e) => {
-            Err(io::Error::new(io::ErrorKind::Other, e.to_string()))
-        }
-    }
+    db.query(Query{ n1ql: N1QL::UPDATE_TRACK.into(), options}).await?;
+    Ok(())
 }
 
 impl Track {
@@ -125,11 +104,11 @@ impl Track {
         &mut self.status
     }
 
-    pub fn meta(&self) -> Option<&TrackTags> {
+    pub fn _meta(&self) -> Option<&TrackTags> {
         self.meta.as_ref()
     }
 
-    pub fn fetch_meta(&self) {
+    pub fn _fetch_meta(&self) {
         
     }
 
