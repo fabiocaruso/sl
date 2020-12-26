@@ -10,6 +10,7 @@ use super::{cli::Args, db::*, Session, user::fetch_user};
 #[allow(unused_imports)]
 use serde::{Serialize, Deserialize};
 use serde_json::{json, value::Value};
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct Login {
@@ -70,7 +71,7 @@ pub async fn login(db: &Db, data: Login, secret: &str) -> Result<String, impl st
         json!({
             "email": data.email,
             "hash": hash_pw(&data.password),
-            "session": "sessionSecret",
+            "session": Uuid::new_v4().to_hyphenated().to_string(),
         })
     );
     let mut result = db.query(Query{ n1ql: N1QL::LOGIN.into(), options}).await.unwrap();
@@ -78,7 +79,7 @@ pub async fn login(db: &Db, data: Login, secret: &str) -> Result<String, impl st
         Some(r) => match r {
             QueryResult::User(u) => {
                 // Build JWT Token
-                let jwt_lifetime = 7_776_000;
+                let jwt_lifetime = 7_776_000; // 3 Months
                 let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
                 let alg = Algorithm::new_hmac(AlgorithmID::HS256, secret).unwrap();
                 let header = json!({ 

@@ -273,9 +273,6 @@ async fn main() -> std::io::Result<()> {
                         Either::Left(srv.call(req))
                     },
                 }
-                //let cookies = req.headers().get("Cookie").unwrap().to_str().unwrap().to_string();
-                //let session = req.app_data::<Session>().unwrap();
-                //println!("{}", session.get::<String>("tet").unwrap().unwrap());
             })
             .service(web::scope("/auth")
                 .service(login)
